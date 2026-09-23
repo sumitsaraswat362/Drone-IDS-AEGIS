@@ -1,0 +1,25 @@
+{
+  "session_id": "mc_command_injection_attack_140",
+  "scenario": "Command Injection Attack",
+  "total_packets": 1107,
+  "total_alerts": 188,
+  "rule_alerts": 41,
+  "ml_alerts": 147,
+  "true_positives": 41,
+  "false_positives": 147,
+  "false_negatives": 0,
+  "true_negatives": 919,
+  "precision": 0.2181,
+  "recall": 1.0,
+  "f1_score": 0.3581,
+  "false_positive_rate": 0.1379,
+  "avg_detection_latency_s": 0.0,
+  "per_attack_type": {
+    "COMMAND_INJECTION": {
+      "total_malicious_pkts": 41,
+      "detected": 41,
+      "detection_rate_pct": 100.0
+    }
+  },
+  "chain_integrity_hash": "2802592f8cd57a84846fc213b0ab1f1ffc2c8551b7bf294d01435b196e5bd8f9"
+}

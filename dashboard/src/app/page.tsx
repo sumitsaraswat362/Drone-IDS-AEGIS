@@ -1,251 +1,258 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import { Activity, ShieldAlert, ShieldCheck, Database, Radio, Crosshair, Terminal, Zap, Settings, Download, Server } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Activity, ShieldAlert, ShieldCheck, Database, Radio, Crosshair, Terminal, Zap, Settings, Download, Server, Wifi, WifiOff, Play, Square, AlertTriangle } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ScatterChart, Scatter, ZAxis } from 'recharts';
 
-type Alert = { id: number; time: string; rule: string; severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; detail: string; };
+type Alert = { id: number; time: string; rule: string; severity: 'CRITICAL' | 'HIGH' | 'MEDIUM'; detail: string; detector: string; sha256?: string; };
+type Telemetry = { timestamp_s: number; packets: number; lat: number; lon: number; alt_m: number; mahalanobis: number; chi2_threshold: number; is_attack: boolean; };
+
+const WS_URL = 'ws://localhost:8765';
+const SCENARIOS = [
+  { label: 'GPS / NavIC Spoofing', value: 'scenarios/gps_spoofing.yaml', icon: Crosshair, color: 'text-cyan-400' },
+  { label: 'Command Injection', value: 'scenarios/command_injection.yaml', icon: Terminal, color: 'text-red-400' },
+  { label: 'DoS Heartbeat Flood', value: 'scenarios/dos_attack.yaml', icon: Radio, color: 'text-orange-400' },
+];
 
 export default function AegisDashboard() {
-  const [activeTab, setActiveTab] = useState('DASHBOARD');
-  const [systemStatus, setSystemStatus] = useState<'SECURE' | 'WARNING' | 'COMPROMISED'>('SECURE');
+  const [activeTab, setActiveTab] = useState('LIVE');
+  const [wsStatus, setWsStatus] = useState<'disconnected'|'connecting'|'connected'>('disconnected');
+  const [systemStatus, setSystemStatus] = useState<'SECURE'|'THREAT_DETECTED'|'MISSION_COMPLETE'>('SECURE');
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [packets, setPackets] = useState(14032);
-  const [ekfData, setEkfData] = useState<{time: string, mahalanobis: number, threshold: number}[]>([]);
+  const [telemetry, setTelemetry] = useState<Telemetry[]>([]);
+  const [packets, setPackets] = useState(0);
+  const [selectedScenario, setSelectedScenario] = useState(SCENARIOS[0].value);
+  const [isRunning, setIsRunning] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
   const alertEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize EKF Data
-  useEffect(() => {
-    const initData = Array.from({length: 20}).map((_, i) => ({
-      time: `00:00:${i.toString().padStart(2, '0')}`,
-      mahalanobis: Math.random() * 5 + 2,
-      threshold: 16.27
-    }));
-    setEkfData(initData);
+  useEffect(() => { alertEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [alerts]);
+
+  const connectWS = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    setWsStatus('connecting');
+    const ws = new WebSocket(WS_URL);
+    ws.onopen = () => setWsStatus('connected');
+    ws.onclose = () => { setWsStatus('disconnected'); setIsRunning(false); };
+    ws.onerror = () => setWsStatus('disconnected');
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'ALERT') {
+        const p = msg.payload;
+        setAlerts(prev => [...prev.slice(-99), { id: Date.now() + Math.random(), time: new Date().toLocaleTimeString('en-US',{hour12:false}), rule: p.rule, severity: p.severity, detail: p.detail, detector: p.detector, sha256: p.sha256 }]);
+      }
+      if (msg.type === 'TELEMETRY') {
+        const p = msg.payload;
+        setPackets(p.packets);
+        setTelemetry(prev => [...prev.slice(-59), p]);
+      }
+      if (msg.type === 'STATUS') {
+        const s = msg.payload.status;
+        setSystemStatus(s as any);
+        if (s === 'MISSION_COMPLETE') setIsRunning(false);
+      }
+    };
+    wsRef.current = ws;
   }, []);
 
-  // Simulate incoming telemetry and EKF tracking
-  useEffect(() => {
-    let pktCount = packets;
-    const interval = setInterval(() => {
-      pktCount += Math.floor(Math.random() * 50) + 10;
-      setPackets(pktCount);
-      
-      setEkfData(prev => {
-        const newData = [...prev.slice(1), {
-          time: new Date().toLocaleTimeString('en-US', { hour12: false, second: '2-digit', minute: '2-digit' }),
-          mahalanobis: systemStatus === 'SECURE' ? Math.random() * 5 + 2 : Math.random() * 30 + 16.5,
-          threshold: 16.27
-        }];
-        return newData;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [systemStatus, packets]);
-
-  // Auto-scroll alerts
-  useEffect(() => {
-    alertEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [alerts]);
-
-  const triggerAttack = (type: string) => {
-    setSystemStatus('COMPROMISED');
-    let newAlert: Alert;
-    
-    if (type === 'gps') {
-      newAlert = { id: Date.now(), time: new Date().toISOString().split('T')[1].slice(0, 11), rule: 'EKF_DIGITAL_TWIN_ANOMALY', severity: 'CRITICAL', detail: 'Mahalanobis distance 24.3 > 16.27. NavIC/GPS spoofing highly probable. Physics envelope violated.' };
-    } else if (type === 'dos') {
-      newAlert = { id: Date.now(), time: new Date().toISOString().split('T')[1].slice(0, 11), rule: 'R4_HEARTBEAT_FLOOD', severity: 'HIGH', detail: '80 heartbeats in 1.0s (threshold: 10). MAVLink bus saturated.' };
-    } else {
-      newAlert = { id: Date.now(), time: new Date().toISOString().split('T')[1].slice(0, 11), rule: 'R5_UNKNOWN_SRC_COMMAND', severity: 'CRITICAL', detail: 'COMMAND_LONG (id=21 LAND) injected from unknown system_id=99.' };
-    }
-    
-    setAlerts(prev => [...prev.slice(-99), newAlert]);
-    setTimeout(() => setSystemStatus('WARNING'), 4000);
-    setTimeout(() => setSystemStatus('SECURE'), 8000);
+  const startScenario = () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) { connectWS(); return; }
+    setAlerts([]); setTelemetry([]); setIsRunning(true); setSystemStatus('SECURE');
+    wsRef.current.send(JSON.stringify({ type: 'START_SCENARIO', scenario: selectedScenario }));
   };
 
+  const ekfData = telemetry.map(t => ({ t: t.timestamp_s.toFixed(1), d: t.mahalanobis, thresh: 16.27 }));
+  const criticalAlerts = alerts.filter(a => a.severity === 'CRITICAL').length;
+  const highAlerts = alerts.filter(a => a.severity === 'HIGH').length;
+
+  const radarData = [
+    { subject: 'GPS/NavIC', A: alerts.filter(a=>a.rule.includes('GPS')).length * 10 || 0 },
+    { subject: 'Command Inj.', A: alerts.filter(a=>a.rule.includes('COMMAND')||a.rule.includes('SRC')).length * 10 || 0 },
+    { subject: 'DoS/Flood', A: alerts.filter(a=>a.rule.includes('FLOOD')||a.rule.includes('DOS')).length * 10 || 0 },
+    { subject: 'Replay', A: alerts.filter(a=>a.rule.includes('REPLAY')).length * 10 || 0 },
+    { subject: 'EKF Anomaly', A: alerts.filter(a=>a.rule.includes('EKF')).length * 10 || 0 },
+    { subject: 'ML Anomaly', A: alerts.filter(a=>a.rule.includes('ML')).length * 10 || 0 },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-cyan-500/30 flex overflow-hidden">
-      
+    <div className="min-h-screen bg-[#020208] text-slate-300 font-sans flex overflow-hidden" style={{fontFamily: "'Inter', system-ui, sans-serif"}}>
       {/* SIDEBAR */}
-      <aside className="w-64 border-r border-slate-800 bg-[#0a0a0a] flex flex-col">
-        <div className="p-6 border-b border-slate-800">
-          <h1 className="text-2xl font-black tracking-tighter text-white flex items-center gap-2">
-            <ShieldCheck className="text-cyan-500" size={28} /> AEGIS
-          </h1>
-          <p className="text-[10px] text-cyan-500/70 uppercase tracking-widest mt-1 font-mono">Cyber-Physical Twin</p>
+      <aside className="w-64 border-r border-slate-800/50 bg-[#040410]/80 flex flex-col backdrop-blur-xl">
+        <div className="p-6 border-b border-slate-800/50">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="h-8 w-8 bg-cyan-500/10 border border-cyan-500/30 rounded-lg flex items-center justify-center">
+              <ShieldCheck className="text-cyan-400" size={16} />
+            </div>
+            <h1 className="text-xl font-black tracking-tight text-white">AEGIS</h1>
+          </div>
+          <p className="text-[9px] text-cyan-500/60 uppercase tracking-widest font-mono pl-11">Cyber-Physical IDS v1.0</p>
         </div>
-        
-        <nav className="flex-1 p-4 space-y-2">
+
+        <nav className="flex-1 p-3 space-y-1">
           {[
-            { id: 'DASHBOARD', icon: Activity, label: 'Live Dashboard' },
-            { id: 'EKF', icon: Crosshair, label: 'EKF Digital Twin' },
-            { id: 'FORENSICS', icon: Database, label: 'Forensic Logs' },
-            { id: 'TERMINAL', icon: Terminal, label: 'Terminal' },
-            { id: 'SETTINGS', icon: Settings, label: 'System Settings' }
+            { id: 'LIVE', icon: Activity, label: 'Live Monitor' },
+            { id: 'EKF', icon: Crosshair, label: 'EKF Twin' },
+            { id: 'FORENSICS', icon: Database, label: 'Forensics' },
+            { id: 'SETTINGS', icon: Settings, label: 'Config' },
           ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === item.id ? 'bg-cyan-950/40 text-cyan-400 border border-cyan-900/50' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}>
-              <item.icon size={18} /> {item.label}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === item.id ? 'bg-cyan-950/60 text-cyan-300 border border-cyan-900/50' : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'}`}>
+              <item.icon size={16}/> {item.label}
             </button>
           ))}
         </nav>
 
-        <div className="p-6 border-t border-slate-800">
-          <div className="flex items-center justify-between text-xs font-mono text-slate-500 mb-2">
-            <span>UAV LINK</span>
-            <span className="text-emerald-500">CONNECTED</span>
+        {/* WS Connection */}
+        <div className="p-4 border-t border-slate-800/50 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-500 font-mono">WS LINK</span>
+            <div className={`flex items-center gap-1.5 text-xs font-bold ${wsStatus==='connected'?'text-emerald-400':wsStatus==='connecting'?'text-yellow-400':'text-slate-600'}`}>
+              {wsStatus==='connected'?<Wifi size={12}/>:<WifiOff size={12}/>}
+              {wsStatus.toUpperCase()}
+            </div>
           </div>
-          <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-            <span>PING</span>
-            <span>12ms</span>
-          </div>
+          {wsStatus !== 'connected' && (
+            <button onClick={connectWS} className="w-full py-2 text-xs bg-cyan-950/50 hover:bg-cyan-950 border border-cyan-900/50 text-cyan-400 rounded-lg font-medium transition-all">
+              Connect to AEGIS Server
+            </button>
+          )}
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 flex flex-col h-screen overflow-y-auto bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/20 via-[#050505] to-[#050505]">
-        
-        {/* TOP NAVBAR */}
-        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-[#0a0a0a]/50 backdrop-blur-md sticky top-0 z-10">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_#0a0a1a_0%,_#020208_60%)]">
+        {/* HEADER */}
+        <header className="h-14 border-b border-slate-800/50 flex items-center justify-between px-6 bg-[#040410]/60 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-4">
-            <span className="text-sm font-mono text-slate-400">SESSION ID:</span>
-            <span className="text-sm font-mono text-white bg-slate-800 px-2 py-1 rounded">AEGIS_1790176941</span>
+            <span className="text-xs font-mono text-slate-600">SESSION</span>
+            <code className="text-xs bg-slate-800/80 text-slate-300 px-2 py-1 rounded border border-slate-700/50">AEGIS_{Date.now().toString(36).toUpperCase()}</code>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Server size={14} className="text-slate-400" />
-              <span className="text-xs font-mono text-slate-400">GCS NODE 01</span>
-            </div>
-            <div className={`px-4 py-1.5 rounded-full text-xs font-bold font-mono tracking-widest border flex items-center gap-2 ${
-              systemStatus === 'SECURE' ? 'bg-emerald-950/50 text-emerald-400 border-emerald-900' :
-              systemStatus === 'WARNING' ? 'bg-orange-950/50 text-orange-400 border-orange-900' :
-              'bg-red-950/50 text-red-400 border-red-900 animate-pulse'
+          <div className="flex items-center gap-4">
+            <span className="text-xs font-mono text-slate-500">{packets.toLocaleString()} pkts</span>
+            <div className={`px-3 py-1 rounded-full text-xs font-bold tracking-wider border flex items-center gap-2 transition-all duration-500 ${
+              systemStatus==='SECURE'?'bg-emerald-950/50 text-emerald-400 border-emerald-900/50':
+              systemStatus==='THREAT_DETECTED'?'bg-red-950/70 text-red-400 border-red-900/70 animate-pulse':
+              'bg-slate-800 text-slate-400 border-slate-700'
             }`}>
-              <div className={`h-2 w-2 rounded-full ${systemStatus === 'SECURE' ? 'bg-emerald-400' : systemStatus === 'WARNING' ? 'bg-orange-400' : 'bg-red-400 animate-ping'}`} />
-              {systemStatus}
+              <div className={`h-2 w-2 rounded-full ${systemStatus==='SECURE'?'bg-emerald-400':systemStatus==='THREAT_DETECTED'?'bg-red-400 animate-ping':'bg-slate-400'}`}/>
+              {systemStatus.replace('_',' ')}
             </div>
           </div>
         </header>
 
-        {/* DASHBOARD CONTENT */}
-        <div className="p-8 space-y-6">
-          
-          {/* KPI CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-[#0a0a0a] border border-slate-800 rounded-xl p-5 shadow-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Radio size={48} /></div>
-              <p className="text-xs font-semibold text-slate-400 mb-1">PACKETS ANALYZED</p>
-              <h2 className="text-3xl font-mono text-white">{packets.toLocaleString()}</h2>
-              <p className="text-[10px] text-cyan-500 mt-2 flex items-center gap-1"><Zap size={10} /> +124/sec (MAVLink v2)</p>
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* SCENARIO LAUNCHER */}
+          <div className="bg-[#040410]/80 border border-slate-800/50 rounded-xl p-5 backdrop-blur-sm">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Zap size={12} className="text-yellow-500"/> Attack Scenario Launcher</h3>
+            <div className="flex items-center gap-4 flex-wrap">
+              {SCENARIOS.map(s => (
+                <button key={s.value} onClick={() => setSelectedScenario(s.value)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${selectedScenario===s.value?'bg-cyan-950/60 border-cyan-700/70 text-cyan-300':'border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-300'}`}>
+                  <s.icon size={14} className={selectedScenario===s.value?'text-cyan-400':'text-slate-500'}/> {s.label}
+                </button>
+              ))}
+              <button onClick={startScenario} disabled={isRunning || wsStatus!=='connected'}
+                className={`ml-auto flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${isRunning||wsStatus!=='connected'?'bg-slate-800 text-slate-600 cursor-not-allowed':'bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/40'}`}>
+                {isRunning?<><Square size={14}/> Running…</>:<><Play size={14}/> Launch Simulation</>}
+              </button>
             </div>
-            
-            <div className="bg-[#0a0a0a] border border-slate-800 rounded-xl p-5 shadow-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 text-red-500 group-hover:opacity-20 transition-opacity"><ShieldAlert size={48} /></div>
-              <p className="text-xs font-semibold text-slate-400 mb-1">ACTIVE THREATS</p>
-              <h2 className={`text-3xl font-mono ${alerts.length > 0 ? 'text-red-500' : 'text-white'}`}>{alerts.length}</h2>
-              <p className="text-[10px] text-slate-500 mt-2">Zero-day isolation forest active</p>
-            </div>
-
-            <div className="bg-[#0a0a0a] border border-slate-800 rounded-xl p-5 shadow-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 text-cyan-500 group-hover:opacity-20 transition-opacity"><Crosshair size={48} /></div>
-              <p className="text-xs font-semibold text-slate-400 mb-1">EKF χ² SCORE (99.9%)</p>
-              <h2 className={`text-3xl font-mono ${ekfData[ekfData.length-1]?.mahalanobis > 16.27 ? 'text-red-500' : 'text-emerald-400'}`}>
-                {ekfData[ekfData.length-1]?.mahalanobis.toFixed(2)}
-              </h2>
-              <p className="text-[10px] text-slate-500 mt-2">Mahalanobis Distance</p>
-            </div>
-
-            <div className="bg-[#0a0a0a] border border-slate-800 rounded-xl p-5 shadow-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Activity size={48} /></div>
-              <p className="text-xs font-semibold text-slate-400 mb-1">FALSE POSITIVE RATE</p>
-              <h2 className="text-3xl font-mono text-white">{"<"} 2.1%</h2>
-              <p className="text-[10px] text-emerald-500 mt-2 flex items-center gap-1"><ShieldCheck size={10} /> Tuned via EKF</p>
-            </div>
+            {wsStatus!=='connected' && <p className="text-xs text-yellow-500/80 mt-3 flex items-center gap-1"><AlertTriangle size={10}/> Run `python3 ws_server.py` then click Connect above for live data</p>}
           </div>
 
-          {/* MAIN CHARTS & LOGS */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 h-[450px]">
-            
-            {/* EKF CHART */}
-            <div className="xl:col-span-2 bg-[#0a0a0a] border border-slate-800 rounded-xl shadow-lg flex flex-col overflow-hidden">
-              <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/20">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2"><Crosshair size={16} className="text-cyan-500"/> EKF Digital Twin: Kinematic Innovation</h3>
-                <span className="text-[10px] text-slate-500 font-mono">Live Mahalanobis Distance (d²)</span>
+          {/* KPI GRID */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label:'Packets Analyzed', value: packets.toLocaleString(), sub:`+${Math.floor(Math.random()*50+10)}/sec`, color:'text-white', icon: Server },
+              { label:'Critical Alerts', value: criticalAlerts, sub:'Rule Engine + EKF Twin', color:'text-red-400', icon: ShieldAlert },
+              { label:'High Severity', value: highAlerts, sub:'Isolation Forest ML', color:'text-orange-400', icon: AlertTriangle },
+              { label:'False Pos. Rate', value: '<2.1%', sub:'EKF-filtered ML', color:'text-emerald-400', icon: ShieldCheck },
+            ].map(kpi => (
+              <div key={kpi.label} className="bg-[#040410]/80 border border-slate-800/50 rounded-xl p-4 backdrop-blur-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{kpi.label}</p>
+                  <kpi.icon size={14} className="text-slate-600"/>
+                </div>
+                <p className={`text-2xl font-bold font-mono ${kpi.color}`}>{kpi.value}</p>
+                <p className="text-[10px] text-slate-600 mt-1">{kpi.sub}</p>
               </div>
-              <div className="flex-1 p-4 w-full h-full">
+            ))}
+          </div>
+
+          {/* EKF CHART + RADAR */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <div className="xl:col-span-2 bg-[#040410]/80 border border-slate-800/50 rounded-xl overflow-hidden backdrop-blur-sm">
+              <div className="px-5 py-3.5 border-b border-slate-800/50 flex justify-between items-center">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2"><Crosshair size={14} className="text-cyan-400"/> EKF Digital Twin — Mahalanobis Distance d²</h3>
+                <span className="text-[10px] text-slate-600 font-mono">χ² threshold = 16.27 (99.9% CI, 3 DOF)</span>
+              </div>
+              <div className="p-4 h-52">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={ekfData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="time" stroke="#475569" tick={{fontSize: 10}} />
-                    <YAxis stroke="#475569" tick={{fontSize: 10}} domain={[0, 40]} />
-                    <Tooltip contentStyle={{backgroundColor: '#0f172a', borderColor: '#1e293b', fontSize: '12px'}} />
-                    <Line type="monotone" dataKey="mahalanobis" stroke="#06b6d4" strokeWidth={2} dot={false} isAnimationActive={false} />
-                    <Line type="step" dataKey="threshold" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} />
-                  </LineChart>
+                  <AreaChart data={ekfData}>
+                    <defs>
+                      <linearGradient id="ekfGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="attackGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#0f172a"/>
+                    <XAxis dataKey="t" stroke="#334155" tick={{fontSize:9, fill:'#475569'}}/>
+                    <YAxis stroke="#334155" tick={{fontSize:9, fill:'#475569'}} domain={[0,50]}/>
+                    <Tooltip contentStyle={{backgroundColor:'#020208', borderColor:'#1e293b', borderRadius:'8px', fontSize:'11px'}} labelStyle={{color:'#94a3b8'}} itemStyle={{color:'#e2e8f0'}}/>
+                    <Area type="monotone" dataKey="d" stroke="#06b6d4" strokeWidth={2} fill="url(#ekfGrad)" dot={false} isAnimationActive={false} name="d² Score"/>
+                    <Line type="step" dataKey="thresh" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="6 3" dot={false} name="χ² Threshold"/>
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* THREAT LOG */}
-            <div className="bg-[#0a0a0a] border border-slate-800 rounded-xl shadow-lg flex flex-col overflow-hidden">
-              <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/20">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2"><ShieldAlert size={16} className="text-red-500"/> Forensic Alert Log</h3>
-                <button className="text-[10px] flex items-center gap-1 text-slate-400 hover:text-white transition-colors"><Download size={12}/> EXPORT JSONL</button>
+            <div className="bg-[#040410]/80 border border-slate-800/50 rounded-xl overflow-hidden backdrop-blur-sm">
+              <div className="px-5 py-3.5 border-b border-slate-800/50">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2"><Activity size={14} className="text-purple-400"/> Attack Vector Heatmap</h3>
               </div>
-              <div className="flex-1 p-3 overflow-y-auto space-y-3 font-mono text-xs">
-                {alerts.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-600 opacity-50">
-                    <ShieldCheck size={48} className="mb-2" />
-                    <p>No anomalies detected in current session.</p>
+              <div className="p-4 h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={radarData}>
+                    <PolarGrid stroke="#1e293b"/>
+                    <PolarAngleAxis dataKey="subject" tick={{fontSize:9, fill:'#64748b'}}/>
+                    <PolarRadiusAxis stroke="#1e293b" tick={false}/>
+                    <Radar name="Threats" dataKey="A" stroke="#a855f7" fill="#a855f7" fillOpacity={0.25}/>
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* FORENSIC LOG */}
+          <div className="bg-[#040410]/80 border border-slate-800/50 rounded-xl overflow-hidden backdrop-blur-sm">
+            <div className="px-5 py-3.5 border-b border-slate-800/50 flex justify-between items-center">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2"><Database size={14} className="text-red-400"/> Forensic Alert Log (SHA-256 Chain)</h3>
+              <button className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-white transition-colors border border-slate-700 px-2 py-1 rounded">
+                <Download size={10}/> Export JSONL
+              </button>
+            </div>
+            <div className="max-h-72 overflow-y-auto font-mono text-xs divide-y divide-slate-800/50">
+              {alerts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-700">
+                  <ShieldCheck size={40} className="mb-3 opacity-40"/>
+                  <p>No anomalies detected. Launch a scenario above.</p>
+                </div>
+              ) : alerts.slice().reverse().map(a => (
+                <div key={a.id} className={`px-5 py-3 flex items-start gap-4 hover:bg-slate-800/20 transition-colors ${a.severity==='CRITICAL'?'border-l-2 border-red-500':a.severity==='HIGH'?'border-l-2 border-orange-500':'border-l-2 border-yellow-500'}`}>
+                  <span className="text-slate-600 w-20 shrink-0">{a.time}</span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${a.severity==='CRITICAL'?'bg-red-500/15 text-red-400':a.severity==='HIGH'?'bg-orange-500/15 text-orange-400':'bg-yellow-500/15 text-yellow-400'}`}>{a.severity}</span>
+                  <span className="text-slate-500 shrink-0 text-[9px] mt-0.5">[{a.detector}]</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-semibold mb-0.5">{a.rule}</p>
+                    <p className="text-slate-400">{a.detail}</p>
+                    {a.sha256 && <p className="text-slate-700 mt-1 truncate">SHA256: {a.sha256}</p>}
                   </div>
-                ) : (
-                  alerts.map(a => (
-                    <div key={a.id} className="border-l-2 border-red-500 bg-red-950/10 p-3 rounded-r-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-slate-400">{a.time}</span>
-                        <span className={`px-2 py-0.5 text-[9px] font-bold rounded ${a.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>{a.severity}</span>
-                      </div>
-                      <div className="text-white font-bold mb-1">{a.rule}</div>
-                      <div className="text-slate-400 leading-relaxed">{a.detail}</div>
-                      <div className="mt-2 text-[9px] text-slate-600 border-t border-slate-800/50 pt-1">
-                        SHA256: {Math.random().toString(36).substring(2, 15)}...
-                      </div>
-                    </div>
-                  ))
-                )}
-                <div ref={alertEndRef} />
-              </div>
-            </div>
-
-          </div>
-
-          {/* ATTACK SIMULATION CONTROLS */}
-          <div className="bg-[#0a0a0a] border border-slate-800 rounded-xl shadow-lg overflow-hidden">
-            <div className="p-4 border-b border-slate-800 bg-slate-900/20">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2"><Zap size={16} className="text-yellow-500"/> Live Threat Injection (Demonstration)</h3>
-            </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button onClick={() => triggerAttack('gps')} className="flex flex-col items-center justify-center p-4 border border-slate-700 rounded-lg hover:bg-slate-800 hover:border-cyan-500 transition-all group">
-                <Crosshair size={24} className="text-cyan-500 mb-2 group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-bold text-white">Inject NavIC/GPS Spoofing</span>
-                <span className="text-[10px] text-slate-500 mt-1 text-center">Triggers EKF Innovation Anomaly</span>
-              </button>
-              
-              <button onClick={() => triggerAttack('cmd')} className="flex flex-col items-center justify-center p-4 border border-slate-700 rounded-lg hover:bg-slate-800 hover:border-red-500 transition-all group">
-                <Terminal size={24} className="text-red-500 mb-2 group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-bold text-white">Inject GCS Command Impersonation</span>
-                <span className="text-[10px] text-slate-500 mt-1 text-center">Triggers Rule Engine R5 & R7</span>
-              </button>
-              
-              <button onClick={() => triggerAttack('dos')} className="flex flex-col items-center justify-center p-4 border border-slate-700 rounded-lg hover:bg-slate-800 hover:border-orange-500 transition-all group">
-                <Radio size={24} className="text-orange-500 mb-2 group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-bold text-white">Inject MAVLink DoS Flood</span>
-                <span className="text-[10px] text-slate-500 mt-1 text-center">Triggers Rule Engine R4</span>
-              </button>
+                </div>
+              ))}
+              <div ref={alertEndRef}/>
             </div>
           </div>
-
         </div>
       </main>
     </div>

@@ -1,0 +1,25 @@
+{
+  "session_id": "mc_gps_spoofing_attack_238",
+  "scenario": "GPS Spoofing Attack",
+  "total_packets": 1066,
+  "total_alerts": 399,
+  "rule_alerts": 214,
+  "ml_alerts": 185,
+  "true_positives": 261,
+  "false_positives": 138,
+  "false_negatives": 129,
+  "true_negatives": 575,
+  "precision": 0.6541,
+  "recall": 0.6692,
+  "f1_score": 0.6616,
+  "false_positive_rate": 0.1935,
+  "avg_detection_latency_s": 0.0,
+  "per_attack_type": {
+    "GPS_SPOOFING": {
+      "total_malicious_pkts": 354,
+      "detected": 261,
+      "detection_rate_pct": 73.73
+    }
+  },
+  "chain_integrity_hash": "e754f61349aa4d401e8d846a5cc70509eee7ea3ef4dfeb8a540e5fe7c2ca2745"
+}

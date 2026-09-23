@@ -90,7 +90,7 @@ class EKFCyberTwin:
         S_inv = np.linalg.inv(S)
         
         # Mahalanobis distance squared
-        mahalanobis_sq = float(y.T @ S_inv @ y)
+        mahalanobis_sq = float((y.T @ S_inv @ y).item())
         
         # Kalman Gain
         K = self.P @ self.H.T @ S_inv
