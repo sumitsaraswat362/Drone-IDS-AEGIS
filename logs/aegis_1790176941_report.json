@@ -1,0 +1,25 @@
+{
+  "session_id": "aegis_1790176941",
+  "scenario": "GPS Spoofing Attack",
+  "total_packets": 2035,
+  "total_alerts": 565,
+  "rule_alerts": 323,
+  "ml_alerts": 242,
+  "true_positives": 322,
+  "false_positives": 243,
+  "false_negatives": 242,
+  "true_negatives": 1228,
+  "precision": 0.5699,
+  "recall": 0.5709,
+  "f1_score": 0.5704,
+  "false_positive_rate": 0.1652,
+  "avg_detection_latency_s": 0.0,
+  "per_attack_type": {
+    "GPS_SPOOFING": {
+      "total_malicious_pkts": 564,
+      "detected": 322,
+      "detection_rate_pct": 57.09
+    }
+  },
+  "chain_integrity_hash": "a890d328406cc7a402afa46fa33818ba8860c614a98401301786f616d839de51"
+}

@@ -13,6 +13,7 @@ from ..simulator.mavlink_simulator import MAVLinkSimulator
 from ..simulator.attack_injector import AttackInjector
 from ..detection.rule_engine import RuleEngine
 from ..detection.anomaly_detector import AnomalyDetector
+from ..detection.ekf_twin import EKFCyberTwin
 from .logger import ChainLogger
 
 
@@ -20,14 +21,6 @@ class AEGIS:
     """
     AEGIS: Autonomous Embedded Guardian for Intrusion in Swarms.
     Main IDS orchestrator.
-
-    Pipeline:
-      1. Run a short clean simulation to train the Isolation Forest baseline.
-      2. Stream live packets (with attacks injected) through:
-         a. RuleEngine  → deterministic signature matching
-         b. AnomalyDetector → ML-based novelty scoring
-      3. Log all alerts to a tamper-evident ChainLogger.
-      4. Generate a final forensic report.
     """
 
     def __init__(self, scenario: dict, out_dir: str = "logs",
@@ -39,6 +32,7 @@ class AEGIS:
 
         self.rule_engine      = RuleEngine(gcs_system_id=255)
         self.anomaly_detector = AnomalyDetector(random_state=42)
+        self.ekf_twin         = EKFCyberTwin()
         self.logger           = ChainLogger(
             log_path   = os.path.join(out_dir, f"{self.session_id}_events.jsonl"),
             session_id = self.session_id,
@@ -97,9 +91,18 @@ class AEGIS:
                 self._track_latency(pkt, rule_alert, attack_start_times,
                                      first_detection_times)
 
+            # ── EKF Digital Twin ──────────────────────────────────────────────
+            ekf_alert = self.ekf_twin.process_packet(pkt)
+            if ekf_alert:
+                self._ml_alerts += 1
+                ekf_alert['detector'] = 'EKF_DIGITAL_TWIN'
+                self.logger.log_alert(ekf_alert)
+                self._update_confusion(pkt, detected=True)
+                self._track_latency(pkt, ekf_alert, attack_start_times, first_detection_times)
+
             # ── Anomaly detector ─────────────────────────────────────────────
             ml_alert = self.anomaly_detector.score_packet(pkt)
-            if ml_alert and not rule_alert:   # Only escalate if rules missed it
+            if ml_alert and not rule_alert and not ekf_alert:   # Only escalate if others missed it
                 self._ml_alerts += 1
                 ml_alert['detector'] = 'ISOLATION_FOREST'
                 self.logger.log_alert(ml_alert)
@@ -108,7 +111,7 @@ class AEGIS:
                                      first_detection_times)
 
             # No alert
-            if not rule_alert and not ml_alert:
+            if not rule_alert and not ml_alert and not ekf_alert:
                 self._update_confusion(pkt, detected=False)
 
         final_hash = self.logger.close()
