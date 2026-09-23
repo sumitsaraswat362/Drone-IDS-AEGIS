@@ -1,0 +1,18 @@
+# AEGIS Drone IDS — GPS Spoofing Attack Scenario
+name: "GPS Spoofing Attack"
+description: >
+  Simulates a GPS spoofing attack where an adversary gradually shifts the
+  drone's perceived position toward a fake location (Mumbai Airport).
+  The attacker begins with subtle drift, then escalates to a hard jump.
+
+duration_s: 120
+seed: 42
+
+attacks:
+  - type: gps_spoof
+    start_s: 30.0
+    end_s: 90.0
+    params:
+      intensity: 0.8       # 0–1 (1 = full spoof at target coords)
+      target_lat: 190896000  # Mumbai Airport (1e7 degrees)
+      target_lon: 728656000

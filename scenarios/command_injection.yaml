@@ -1,0 +1,17 @@
+# AEGIS Drone IDS — Command Injection Scenario
+name: "Command Injection Attack"
+description: >
+  Simulates a command injection attack where an adversary spoofs the GCS
+  system ID and injects forged COMMAND_LONG packets (LAND, RTL, DISARM)
+  into the MAVLink channel.
+
+duration_s: 120
+seed: 42
+
+attacks:
+  - type: cmd_inject
+    start_s: 40.0
+    end_s: 80.0
+    params:
+      command_id: 21       # MAV_CMD_NAV_LAND
+      spoof_sysid: 99      # Attacker masquerades as system 99

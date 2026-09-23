@@ -1,0 +1,16 @@
+# AEGIS Drone IDS — Denial-of-Service Scenario
+name: "Denial-of-Service (Heartbeat Flood)"
+description: >
+  Simulates a packet-flood DoS attack where an adversary sends hundreds of
+  MAVLink HEARTBEAT packets per second to overwhelm the drone's communication
+  bus, causing legitimate GCS commands to be delayed or dropped.
+
+duration_s: 120
+seed: 42
+
+attacks:
+  - type: dos
+    start_s: 25.0
+    end_s: 70.0
+    params:
+      burst_count: 80       # Packets per tick (at 10Hz = 800 pkts/s)
