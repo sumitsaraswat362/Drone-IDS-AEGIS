@@ -122,8 +122,8 @@ class AnomalyDetector:
     Train on normal traffic, then score live packets.
     """
 
-    def __init__(self, contamination: float = 0.05, n_estimators: int = 100,
-                 random_state: int = 42, score_threshold: float = -0.1):
+    def __init__(self, contamination: float = 0.01, n_estimators: int = 100,
+                 random_state: int = 42, score_threshold: float = -0.5):
         self.model = IsolationForest(
             contamination  = contamination,
             n_estimators   = n_estimators,

@@ -38,7 +38,7 @@ class AEGIS:
         os.makedirs(out_dir, exist_ok=True)
 
         self.rule_engine      = RuleEngine(gcs_system_id=255)
-        self.anomaly_detector = AnomalyDetector(contamination=0.05, random_state=42)
+        self.anomaly_detector = AnomalyDetector(random_state=42)
         self.logger           = ChainLogger(
             log_path   = os.path.join(out_dir, f"{self.session_id}_events.jsonl"),
             session_id = self.session_id,
