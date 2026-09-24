@@ -10,7 +10,7 @@
 **[VISUAL: You on camera, looking confident. No screen sharing yet.]**
 
 **Speaker:**
-"Hello judges, I am Sumit Saraswat from Team Persistent Formation. Today we are presenting AEGIS — an Autonomous Embedded Guardian for Intrusion in Swarms. 
+"Hello judges, I am Sumit Saraswat from Team Acrobats. Today we are presenting AEGIS — an Autonomous Embedded Guardian for Intrusion in Swarms. 
 
 Right now, the drone industry has a massive blind spot. Current Drone IDS solutions try to apply basic IT network rules to UAVs. They fail because they don't understand physics. A drone accelerating at 5 meters per second squared is normal; but a drone teleporting 200 meters instantly? That is a GPS spoofing attack. 
 

@@ -1,8 +1,7 @@
 """
-AEGIS Drone IDS — Monte Carlo Validation Suite
+AEGIS Drone IDS — Monte Carlo Validation Suite (MULTIPROCESSING VERSION)
 Multi-seed, multi-scenario stress-test across 600 simulation runs.
-Produces a statistically rigorous validation report with per-attack metrics,
-95% confidence intervals, and seed-by-seed reproducibility verification.
+Produces a statistically rigorous validation report with per-attack metrics.
 """
 import json
 import os
@@ -10,7 +9,7 @@ import sys
 import time
 import csv
 import statistics
-from collections import defaultdict
+import concurrent.futures
 from typing import List, Dict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -50,81 +49,92 @@ SCENARIOS = [
 
 SEEDS_PER_SCENARIO = 120   # 5 scenarios × 120 seeds = 600 total runs
 
-
 def _confidence_interval(data: List[float], confidence: float = 0.95):
-    """Return (mean, lower_95ci, upper_95ci) using t-distribution approximation."""
     n = len(data)
     if n < 2:
         m = data[0] if data else 0
         return m, m, m
     m   = statistics.mean(data)
     std = statistics.stdev(data)
-    # t-value for 95% CI, large n ≈ 1.96
     t   = 1.96
     margin = t * std / (n ** 0.5)
     return m, m - margin, m + margin
 
+def _run_single_scenario(args):
+    scenario, seed, out_dir = args
+    run_scenario = dict(scenario)
+    run_scenario["seed"] = seed
+    
+    aegis = AEGIS(
+        scenario   = run_scenario,
+        out_dir    = os.path.join(out_dir, "raw"),
+        session_id = f"mc_{scenario['name'].replace(' ', '_').lower()}_{seed}",
+    )
+    report = aegis.run()
+    return {
+        "scenario": scenario["name"],
+        "seed":     seed,
+        **{k: report[k] for k in ["precision", "recall", "f1_score",
+                                   "false_positive_rate", "avg_detection_latency_s",
+                                   "true_positives", "false_positives",
+                                   "false_negatives", "true_negatives"]},
+    }
 
-def run_validation(out_dir: str = "logs/validation") -> dict:
+def run_validation(out_dir: str = "logs/validation"):
     os.makedirs(out_dir, exist_ok=True)
-    all_results: List[dict] = []
-    scenario_summary: Dict[str, dict] = {}
-
-    total_runs = len(SCENARIOS) * SEEDS_PER_SCENARIO
-    run_count  = 0
+    all_results = []
+    
+    tasks = []
+    for scenario in SCENARIOS:
+        for seed_offset in range(SEEDS_PER_SCENARIO):
+            seed = seed_offset * 7 + 42
+            tasks.append((scenario, seed, out_dir))
+            
+    total_runs = len(tasks)
+    run_count = 0
     t0 = time.time()
 
     print(f"\n{'='*65}")
-    print(f"  AEGIS MONTE CARLO VALIDATION SUITE")
-    print(f"  {total_runs} runs across {len(SCENARIOS)} scenarios × {SEEDS_PER_SCENARIO} seeds")
+    print(f"  AEGIS MULTIPROCESSING MONTE CARLO SUITE")
+    print(f"  {total_runs} runs across {len(SCENARIOS)} scenarios")
     print(f"{'='*65}\n")
 
-    for scenario in SCENARIOS:
-        prec_list, rec_list, f1_list, fpr_list, lat_list = [], [], [], [], []
-
-        for seed_offset in range(SEEDS_PER_SCENARIO):
-            seed = seed_offset * 7 + 42   # Deterministic, well-distributed seeds
-            run_scenario = dict(scenario)
-            run_scenario["seed"] = seed
-
-            aegis = AEGIS(
-                scenario   = run_scenario,
-                out_dir    = os.path.join(out_dir, "raw"),
-                session_id = f"mc_{scenario['name'].replace(' ', '_').lower()}_{seed}",
-            )
-            report = aegis.run()
-
-            prec_list.append(report["precision"])
-            rec_list.append(report["recall"])
-            f1_list.append(report["f1_score"])
-            fpr_list.append(report["false_positive_rate"])
-            if report["avg_detection_latency_s"] > 0:
-                lat_list.append(report["avg_detection_latency_s"])
-
-            all_results.append({
-                "scenario": scenario["name"],
-                "seed":     seed,
-                **{k: report[k] for k in ["precision", "recall", "f1_score",
-                                           "false_positive_rate", "avg_detection_latency_s",
-                                           "true_positives", "false_positives",
-                                           "false_negatives", "true_negatives"]},
-            })
-
+    # Use max CPU cores to smash through the simulation instantly
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = {executor.submit(_run_single_scenario, task): task for task in tasks}
+        for future in concurrent.futures.as_completed(futures):
+            all_results.append(future.result())
             run_count += 1
+            
             elapsed = time.time() - t0
             pct = 100 * run_count / total_runs
-            eta = (elapsed / run_count) * (total_runs - run_count) if run_count > 0 else 0
-            print(f"\r  [{run_count:>3}/{total_runs}] {pct:5.1f}%  Scenario: {scenario['name']:<35}  ETA: {eta:.0f}s  ", end="", flush=True)
+            # Better ETA logic focusing on recent completion rate
+            eta = (elapsed / run_count) * (total_runs - run_count) 
+            print(f"\r  [{run_count:>3}/{total_runs}] {pct:5.1f}%  ETA: {eta:.0f}s (Processing across all CPU cores)  ", end="", flush=True)
 
-        # Compute aggregate stats with 95% CI
-        prec_m, prec_lo, prec_hi  = _confidence_interval(prec_list)
-        rec_m,  rec_lo,  rec_hi   = _confidence_interval(rec_list)
-        f1_m,   f1_lo,   f1_hi    = _confidence_interval(f1_list)
-        fpr_m,  fpr_lo,  fpr_hi   = _confidence_interval(fpr_list)
+    print(f"\n\n  Completed {total_runs} runs in {time.time() - t0:.1f}s\n")
+
+    # Group results
+    grouped = {s["name"]: [] for s in SCENARIOS}
+    for r in all_results:
+        grouped[r["scenario"]].append(r)
+        
+    scenario_summary = {}
+    for name, results in grouped.items():
+        prec_list = [r["precision"] for r in results]
+        rec_list = [r["recall"] for r in results]
+        f1_list = [r["f1_score"] for r in results]
+        fpr_list = [r["false_positive_rate"] for r in results]
+        lat_list = [r["avg_detection_latency_s"] for r in results if r["avg_detection_latency_s"] > 0]
+        
+        prec_m, prec_lo, prec_hi = _confidence_interval(prec_list)
+        rec_m, rec_lo, rec_hi = _confidence_interval(rec_list)
+        f1_m, f1_lo, f1_hi = _confidence_interval(f1_list)
+        fpr_m, fpr_lo, fpr_hi = _confidence_interval(fpr_list)
         lat_m = statistics.mean(lat_list) if lat_list else 0.0
-
-        scenario_summary[scenario["name"]] = {
-            "n_runs":              SEEDS_PER_SCENARIO,
+        
+        scenario_summary[name] = {
+            "n_runs":              len(results),
             "precision_mean":     round(prec_m, 4),
             "precision_95ci":     (round(prec_lo, 4), round(prec_hi, 4)),
             "recall_mean":        round(rec_m, 4),
@@ -136,17 +146,14 @@ def run_validation(out_dir: str = "logs/validation") -> dict:
             "avg_latency_s":      round(lat_m, 4),
         }
 
-    print(f"\n\n  Completed {total_runs} runs in {time.time() - t0:.1f}s\n")
-
-    # ── Write CSV ─────────────────────────────────────────────────────────────
+    # Write CSV
     csv_path = os.path.join(out_dir, "mc_raw_results.csv")
-    if all_results:
-        with open(csv_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=all_results[0].keys())
-            writer.writeheader()
-            writer.writerows(all_results)
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=all_results[0].keys())
+        writer.writeheader()
+        writer.writerows(all_results)
 
-    # ── Write summary JSON ────────────────────────────────────────────────────
+    # Write summary JSON
     summary = {
         "total_runs":         total_runs,
         "seeds_per_scenario": SEEDS_PER_SCENARIO,
@@ -158,11 +165,8 @@ def run_validation(out_dir: str = "logs/validation") -> dict:
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
 
-    # ── Print table ───────────────────────────────────────────────────────────
     _print_table(scenario_summary)
-
     return summary
-
 
 def _print_table(summary: dict):
     SEP = "─" * 95
@@ -176,7 +180,6 @@ def _print_table(summary: dict):
         fpr = f"{s['fpr_mean']:.3f}"
         print(f"  {name:<38} {p:<22} {r:<22} {f:<10} {fpr:<12} {s['avg_latency_s']:.3f}")
     print(SEP)
-
 
 if __name__ == "__main__":
     run_validation()

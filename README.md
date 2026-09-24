@@ -13,7 +13,7 @@
 
 ### A Cyber-Physical Digital Twin Intrusion Detection System for MAVLink UAVs
 
-**Team: Persistent Formation** | PUSHPAK Grand Challenge 2026 — Security of Drones (Objective 2)
+**Team: Acrobats** | PUSHPAK Grand Challenge 2026 — Security of Drones (Objective 2)
 
 [**🔴 Live Dashboard →**](https://ageis-ecru.vercel.app) &nbsp;|&nbsp; [**📄 Stage 1 Report →**](docs/Stage1_Report.md) &nbsp;|&nbsp; [**📐 Architecture →**](docs/Techfest_Proposal.md)
 
@@ -200,4 +200,4 @@ Drone-IDS-AEGIS/
 
 ## 📜 License
 
-MIT © 2026 Team Persistent Formation — Sumit Saraswat & Tanmay Kaushal
+MIT © 2026 Team Acrobats — Sumit Saraswat & Tanmay Kaushal

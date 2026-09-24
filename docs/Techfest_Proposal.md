@@ -1,7 +1,7 @@
 # PUSHPAK Grand Challenge: Security of Drones
 ## Stage 1 Technical Proposal: AEGIS (Autonomous Embedded Guardian for Intrusion in Swarms)
 
-**Team:** Persistent Formation  
+**Team:** Acrobats  
 **Members:** Sumit Saraswat, Tanmay Kaushal  
 **Objective:** Objective 2 - Drone Intrusion Detection System (Drone IDS)
 

@@ -1,0 +1,25 @@
+{
+  "session_id": "mc_denial-of-service_flood_777",
+  "scenario": "Denial-of-Service Flood",
+  "total_packets": 3526,
+  "total_alerts": 2703,
+  "rule_alerts": 2492,
+  "ml_alerts": 211,
+  "true_positives": 2450,
+  "false_positives": 253,
+  "false_negatives": 10,
+  "true_negatives": 813,
+  "precision": 0.9064,
+  "recall": 0.9959,
+  "f1_score": 0.9491,
+  "false_positive_rate": 0.2373,
+  "avg_detection_latency_s": 0.0,
+  "per_attack_type": {
+    "DENIAL_OF_SERVICE": {
+      "total_malicious_pkts": 2460,
+      "detected": 2450,
+      "detection_rate_pct": 99.59
+    }
+  },
+  "chain_integrity_hash": "3d9f69f76a1c74da8a33ebb77555f49e4949e5fced1062e1df206c251285c00d"
+}

@@ -1,0 +1,25 @@
+{
+  "session_id": "mc_replay_attack_119",
+  "scenario": "Replay Attack",
+  "total_packets": 2101,
+  "total_alerts": 1315,
+  "rule_alerts": 1035,
+  "ml_alerts": 280,
+  "true_positives": 1035,
+  "false_positives": 280,
+  "false_negatives": 0,
+  "true_negatives": 786,
+  "precision": 0.7871,
+  "recall": 1.0,
+  "f1_score": 0.8809,
+  "false_positive_rate": 0.2627,
+  "avg_detection_latency_s": 0.0,
+  "per_attack_type": {
+    "REPLAY_ATTACK": {
+      "total_malicious_pkts": 1035,
+      "detected": 1035,
+      "detection_rate_pct": 100.0
+    }
+  },
+  "chain_integrity_hash": "bd0a49efdf3694894bb6ab137ea57b2eec7e92a25b1b4f882fa4696cdfb4f2f9"
+}

@@ -7,7 +7,7 @@
 
 | Particular | Details |
 |---|---|
-| **Team Name** | Persistent Formation |
+| **Team Name** | Acrobats |
 | **Institution / Organization** | Independent Research Team |
 | **Team Leader** | Sumit Saraswat |
 | **Team Members** | Sumit Saraswat, Tanmay Kaushal |
