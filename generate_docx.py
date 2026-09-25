@@ -40,7 +40,7 @@ records = [
     ('Team Name', 'Acrobats'),
     ('Institution / Organization', 'Independent Research Team'),
     ('Team Leader', 'Sumit Saraswat'),
-    ('Team Members', 'Sumit Saraswat, Tanmay Kaushal'),
+    ('Team Members', 'Sumit Saraswat, Tanmay Kaushal, Vansh Kumar, Ayushi Katara, Jahanvi Chaurasia'),
     ('Faculty / Industry Mentor, if any', 'None'),
     ('Email Address', 'sumitsaraswat362@gmail.com'),
     ('Contact Number', '+91 9999999999'),

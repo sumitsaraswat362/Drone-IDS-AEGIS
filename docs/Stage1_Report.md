@@ -10,7 +10,7 @@
 | **Team Name** | Acrobats |
 | **Institution / Organization** | Independent Research Team |
 | **Team Leader** | Sumit Saraswat |
-| **Team Members** | Sumit Saraswat, Tanmay Kaushal |
+| **Team Members** | Sumit Saraswat, Tanmay Kaushal, Vansh Kumar, Ayushi Katara, Jahanvi Chaurasia |
 | **Faculty / Industry Mentor** | — |
 | **Email Address** | sumitsaraswat362@gmail.com |
 | **Proposed Design Name** | **AEGIS** — Autonomous Embedded Guardian for Intrusion in Swarms |

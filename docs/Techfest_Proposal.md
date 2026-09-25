@@ -2,7 +2,7 @@
 ## Stage 1 Technical Proposal: AEGIS (Autonomous Embedded Guardian for Intrusion in Swarms)
 
 **Team:** Acrobats  
-**Members:** Sumit Saraswat, Tanmay Kaushal  
+**Members:** Sumit Saraswat, Tanmay Kaushal, Vansh Kumar, Ayushi Katara, Jahanvi Chaurasia  
 **Objective:** Objective 2 - Drone Intrusion Detection System (Drone IDS)
 
 ---
