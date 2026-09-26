@@ -200,4 +200,4 @@ Drone-IDS-AEGIS/
 
 ## 📜 License
 
-MIT © 2026 Team Acrobats — Sumit Saraswat & Tanmay Kaushal
+MIT © 2026 Team Acrobats — Sumit Saraswat, Vansh Kumar, Tanmay Kaushal, Ayushi Katara, Jahnavi Chaurasia
