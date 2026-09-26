@@ -39,14 +39,14 @@ The core is a **Kinematic Extended Kalman Filter (EKF)** that tracks the UAV's 6
            ┌────────┴────────┐
            ▼                 ▼
   ┌──────────────┐  ┌───────────────────────────┐
-  │ Rule Engine  │  │  EKF Kinematic Digital Twin│  ← Core Innovation
-  │  (O(1)/pkt)  │  │  State: [x,y,z,vx,vy,vz]  │
-  │              │  │  Mahalanobis d² vs χ²(3DOF)│
+  │ Rule Engine  │  │ EKF Kinematic Digital Twin│  ← Core Innovation
+  │  (O(1)/pkt)  │  │ State: [x,y,z,vx,vy,vz]   │
+  │              │  │ Mahalanobis d² vs χ²(3DOF)│
   │ R1: GPS Jump │  └───────────┬───────────────┘
   │ R4: DoS Flood│              │
   │ R5: Rogue CMD│  ┌───────────▼───────────────┐
-  │ R6: Replay   │  │  Isolation Forest ML (100  │
-  │ R7: GCS Imp. │  │  estimators, 12-dim feats) │
+  │ R6: Replay   │  │  Isolation Forest ML (100 │
+  │ R7: GCS Imp. │  │  estimators, 12-dim feats)│
   └──────┬───────┘  └───────────┬───────────────┘
          └──────────┬───────────┘
                     ▼
